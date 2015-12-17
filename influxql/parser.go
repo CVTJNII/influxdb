@@ -2299,6 +2299,11 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			return &TimeLiteral{Val: t}, nil
 		}
 		return &StringLiteral{Val: lit}, nil
+	case PREVIOUS:
+		// If a previous token is found inside of a unary expression, it is treated
+		// as an ident literal so it can be treated as a special type of expression
+		// without conflicting with the reserved keyword.
+		return &identLiteral{Val: "previous"}, nil
 	case NUMBER:
 		v, err := strconv.ParseFloat(lit, 64)
 		if err != nil {

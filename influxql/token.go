@@ -103,8 +103,10 @@ const (
 	ON
 	ORDER
 	PASSWORD
+	PERINTERVAL
 	POLICY
 	POLICIES
+	PREVIOUS
 	PRIVILEGES
 	QUERIES
 	QUERY
@@ -222,8 +224,10 @@ var tokens = [...]string{
 	ON:            "ON",
 	ORDER:         "ORDER",
 	PASSWORD:      "PASSWORD",
+	PERINTERVAL:   "PERINTERVAL",
 	POLICY:        "POLICY",
 	POLICIES:      "POLICIES",
+	PREVIOUS:      "PREVIOUS",
 	PRIVILEGES:    "PRIVILEGES",
 	QUERIES:       "QUERIES",
 	QUERY:         "QUERY",

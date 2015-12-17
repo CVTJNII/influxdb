@@ -127,6 +127,7 @@ func (Dimensions) node()       {}
 func (*DurationLiteral) node() {}
 func (*Field) node()           {}
 func (Fields) node()           {}
+func (*identLiteral) node()    {}
 func (*Measurement) node()     {}
 func (Measurements) node()     {}
 func (*nilLiteral) node()      {}
@@ -241,6 +242,7 @@ func (*BooleanLiteral) expr()  {}
 func (*Call) expr()            {}
 func (*Distinct) expr()        {}
 func (*DurationLiteral) expr() {}
+func (*identLiteral) expr()    {}
 func (*nilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
@@ -2755,6 +2757,16 @@ type nilLiteral struct{}
 
 // String returns a string representation of the literal.
 func (l *nilLiteral) String() string { return `nil` }
+
+// identLiteral represents an unquoted literal.
+// It can be used for having an ident with the same name as a reserved keyword.
+// It is only used internally.
+type identLiteral struct {
+	Val string
+}
+
+// String returns a string representation of the literal.
+func (l *identLiteral) String() string { return l.Val }
 
 // BinaryExpr represents an operation between two expressions.
 type BinaryExpr struct {
