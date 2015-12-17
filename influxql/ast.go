@@ -1969,11 +1969,27 @@ type CreateContinuousQueryStatement struct {
 
 	// Source of data (SELECT statement).
 	Source *SelectStatement
+
+	// Number of previous intervals to resample
+	Previous int
+
+	// Number of times to compute this query per interval
+	PerInterval int
 }
 
 // String returns a string representation of the statement.
 func (s *CreateContinuousQueryStatement) String() string {
-	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", QuoteIdent(s.Name), QuoteIdent(s.Database), s.Source.String())
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "CREATE CONTINUOUS QUERY %s ON %s ", QuoteIdent(s.Name), QuoteIdent(s.Database))
+
+	if s.Previous > 0 {
+		fmt.Fprintf(&buf, "PREVIOUS %d ", s.Previous)
+	}
+	if s.PerInterval > 0 {
+		fmt.Fprintf(&buf, "PERINTERVAL %d ", s.PerInterval)
+	}
+	fmt.Fprintf(&buf, "BEGIN %s END", s.Source.String())
+	return buf.String()
 }
 
 // DefaultDatabase returns the default database from the statement.

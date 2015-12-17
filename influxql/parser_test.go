@@ -1051,7 +1051,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb PREVIOUS 3 PERINTERVAL 60 BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
@@ -1070,6 +1070,8 @@ func TestParser_ParseStatement(t *testing.T) {
 						},
 					},
 				},
+				Previous:    3,
+				PerInterval: 60,
 			},
 		},
 

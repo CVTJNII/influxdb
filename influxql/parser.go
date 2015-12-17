@@ -1403,8 +1403,31 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	}
 	stmt.Database = ident
 
-	// Expect a "BEGIN SELECT" tokens.
-	if err := p.parseTokens([]Token{BEGIN, SELECT}); err != nil {
+OPTIONS:
+	for {
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		switch tok {
+		case PREVIOUS:
+			var err error
+			stmt.Previous, err = p.parseInt(1, math.MaxInt32)
+			if err != nil {
+				return nil, err
+			}
+		case PERINTERVAL:
+			var err error
+			stmt.PerInterval, err = p.parseInt(1, math.MaxInt32)
+			if err != nil {
+				return nil, err
+			}
+		case BEGIN:
+			break OPTIONS
+		default:
+			return nil, newParseError(tokstr(tok, lit), []string{"PREVIOUS", "PERINTERVAL", "BEGIN"}, pos)
+		}
+	}
+
+	// Expect a "SELECT" tokens. The "BEGIN" token was already consumed during options processing.
+	if err := p.parseTokens([]Token{SELECT}); err != nil {
 		return nil, err
 	}
 
