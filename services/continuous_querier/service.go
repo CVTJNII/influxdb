@@ -182,6 +182,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 // backgroundLoop runs on a go routine and periodically executes CQs.
 func (s *Service) backgroundLoop() {
 	defer s.wg.Done()
+	interval := time.After(s.RunInterval)
 	for {
 		select {
 		case <-s.stop:
@@ -192,10 +193,11 @@ func (s *Service) backgroundLoop() {
 				s.Logger.Printf("running continuous queries by request for time: %v", req.Now.UnixNano())
 				s.runContinuousQueries(req)
 			}
-		case <-time.After(s.RunInterval):
+		case <-interval:
 			if s.MetaStore.IsLeader() {
 				s.runContinuousQueries(&RunRequest{Now: time.Now()})
 			}
+			interval = time.After(s.RunInterval)
 		}
 	}
 }
