@@ -50,7 +50,7 @@ type metaStore interface {
 
 // RunRequest is a request to run one or more CQs.
 type RunRequest struct {
-	// Now tells the CQ serivce what the current time is.
+	// Now tells the CQ service what the current time is.
 	Now time.Time
 	// CQs tells the CQ service which queries to run.
 	// If nil, all queries will be run.
@@ -248,7 +248,11 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// See if this query needs to be run.
 	computeNoMoreThan := time.Duration(s.Config.ComputeNoMoreThan)
-	run, err := cq.shouldRunContinuousQuery(s.Config.ComputeRunsPerInterval, computeNoMoreThan)
+	runInterval := cq.Options.PerInterval
+	if runInterval == 0 {
+		runInterval = s.Config.ComputeRunsPerInterval
+	}
+	run, err := cq.shouldRunContinuousQuery(runInterval, computeNoMoreThan, now)
 	if err != nil {
 		return err
 	} else if !run {
@@ -290,7 +294,11 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	recomputeNoOlderThan := time.Duration(s.Config.RecomputeNoOlderThan)
 
-	for i := 0; i < s.Config.RecomputePreviousN; i++ {
+	recomputePreviousN := cq.Options.Previous
+	if recomputePreviousN == 0 {
+		recomputePreviousN = s.Config.RecomputePreviousN
+	}
+	for i := 0; i < recomputePreviousN; i++ {
 		// if we're already more time past the previous window than we're going to look back, stop
 		if now.Sub(startTime) > recomputeNoOlderThan {
 			return nil
@@ -343,7 +351,13 @@ type ContinuousQuery struct {
 	Database string
 	Info     *meta.ContinuousQueryInfo
 	LastRun  time.Time
+	Options  ContinuousQueryOptions
 	q        *influxql.SelectStatement
+}
+
+type ContinuousQueryOptions struct {
+	Previous    int
+	PerInterval int
 }
 
 func (cq *ContinuousQuery) intoRP() string      { return cq.q.Target.Measurement.RetentionPolicy }
@@ -364,7 +378,11 @@ func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*Contin
 	cquery := &ContinuousQuery{
 		Database: database,
 		Info:     cqi,
-		q:        q.Source,
+		Options: ContinuousQueryOptions{
+			Previous:    q.Previous,
+			PerInterval: q.PerInterval,
+		},
+		q: q.Source,
 	}
 
 	return cquery, nil
@@ -373,7 +391,7 @@ func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*Contin
 // shouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
 // lastRunTime of the CQ and the rules for when to run set through the config to determine
 // if this CQ should be run
-func (cq *ContinuousQuery) shouldRunContinuousQuery(runsPerInterval int, noMoreThan time.Duration) (bool, error) {
+func (cq *ContinuousQuery) shouldRunContinuousQuery(runsPerInterval int, noMoreThan time.Duration, now time.Time) (bool, error) {
 	// if it's not aggregated we don't run it
 	if cq.q.IsRawQuery {
 		return false, errors.New("continuous queries must be aggregate queries")
@@ -394,7 +412,7 @@ func (cq *ContinuousQuery) shouldRunContinuousQuery(runsPerInterval int, noMoreT
 	}
 
 	// if we've passed the amount of time since the last run, do it up
-	if cq.LastRun.Add(computeEvery).UnixNano() <= time.Now().UnixNano() {
+	if cq.LastRun.Add(computeEvery).UnixNano() <= now.UnixNano() {
 		return true, nil
 	}
 

@@ -173,6 +173,8 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 // Test ExecuteContinuousQuery when QueryExecutor returns an error.
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
+
+	// Set RunInterval
 	qe := s.QueryExecutor.(*QueryExecutor)
 	qe.Err = errExpected
 
@@ -184,6 +186,79 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	if err != errExpected {
 		t.Errorf("exp = %s, got = %v", errExpected, err)
 	}
+}
+
+func TestExecuteContinuousQuery_PerQueryOptions(t *testing.T) {
+	s := NewTestService(t)
+
+	// Set RunInterval high so we can trigger using Run method.
+	s.RunInterval = 10 * time.Minute
+
+	// Only want one call to ExecuteQueryFn per CQ.
+	s.Config.RecomputePreviousN = 0
+
+	// Configure default config settings to be overwritten
+	s.Config.ComputeRunsPerInterval = 1
+	s.Config.ComputeNoMoreThan = 0
+
+	done := make(chan struct{})
+
+	// Set a callback for ExecuteQuery.
+	qe := s.QueryExecutor.(*QueryExecutor)
+	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
+		done <- struct{}{}
+		dummych := make(chan *influxql.Result, 1)
+		dummych <- &influxql.Result{}
+		return dummych, nil
+	}
+
+	s.Open()
+
+	// Trigger service to run db4 with cq4 and another to run in the future
+	// Do not use Run() since that resets the last run timestamp and also
+	// triggers the other continuous queries.
+	s.RunCh <- &RunRequest{
+		Now: time.Now(),
+		CQs: []string{"cq3"},
+	}
+
+	// Shouldn't time out.
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Error(err)
+	}
+
+	// Trigger a second request a second into the future.
+	// We use the current time plus a second. If the global option was used,
+	// it will not process another request until 10 seconds have passed. The
+	// PERINTERVAL option tells it to override the defaults and perform a calculation
+	// every second.
+	s.RunCh <- &RunRequest{
+		Now: time.Now().Add(time.Second),
+		CQs: []string{"cq3"},
+	}
+
+	// Shouldn't time out.
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Error(err)
+	}
+
+	// Create a new continuous query with PREVIOUS set to a value larger than 0,
+	// then send a request to run it.
+	ms := s.MetaStore.(*MetaStore)
+	ms.CreateContinuousQuery("db3", "cq4", `CREATE CONTINUOUS QUERY cq3 ON db3 PREVIOUS 1 BEGIN SELECT mean(value) INTO "1hAverages".:MEASUREMENT FROM /cpu[0-9]?/ GROUP BY time(10s) END`)
+	s.RunCh <- &RunRequest{
+		Now: time.Now(),
+		CQs: []string{"cq4"},
+	}
+
+	// Two queries should be executed.
+	for i := 0; i < 2; i++ {
+		if err := wait(done, 100*time.Millisecond); err != nil {
+			t.Error(err)
+			break
+		}
+	}
+	s.Close()
 }
 
 // NewTestService returns a new *Service with default mock object members.
@@ -205,7 +280,7 @@ func NewTestService(t *testing.T) *Service {
 	ms.CreateDatabase("db2", "default")
 	ms.CreateContinuousQuery("db2", "cq2", `CREATE CONTINUOUS QUERY cq2 ON db2 BEGIN SELECT mean(value) INTO cpu_mean FROM cpu WHERE time > now() - 10m GROUP BY time(1m) END`)
 	ms.CreateDatabase("db3", "default")
-	ms.CreateContinuousQuery("db3", "cq3", `CREATE CONTINUOUS QUERY cq3 ON db3 BEGIN SELECT mean(value) INTO "1hAverages".:MEASUREMENT FROM /cpu[0-9]?/ GROUP BY time(10s) END`)
+	ms.CreateContinuousQuery("db3", "cq3", `CREATE CONTINUOUS QUERY cq3 ON db3 PERINTERVAL 10 BEGIN SELECT mean(value) INTO "1hAverages".:MEASUREMENT FROM /cpu[0-9]?/ GROUP BY time(10s) END`)
 
 	return s
 }
