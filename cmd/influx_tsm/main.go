@@ -88,6 +88,9 @@ func main() {
 	}
 	fmt.Println("Conversion starting....")
 
+	// Read each directory, and write converted version to ".tsm"
+	// When complete, rename old version to .bak and strip ".tsm"
+
 	// Backup each directory.
 	for _, db := range dbs {
 		dest := filepath.Join(dataPath, db.Name()+".bak")
