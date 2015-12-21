@@ -383,7 +383,7 @@ func (m *Monitor) storeStatistics() {
 				Points:           points,
 			})
 			if err != nil {
-				m.Logger.Printf("failed to store statistics: %s", err)
+				panic(fmt.Printf("failed to store statistics: %s", err))
 			}
 		case <-m.done:
 			m.Logger.Printf("terminating storage of statistics")
